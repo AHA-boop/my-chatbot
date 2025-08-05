@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구글 시트 GPT 챗봇</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .chat-container {
+            max-width: 640px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            margin: auto;
+        }
+        .message-list {
+            flex-grow: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            -ms-overflow-style: none; /* Internet Explorer 10+ */
+            scrollbar-width: none; /* Firefox */
+        }
+        .message-list::-webkit-scrollbar {
+            display: none; /* Safari and Chrome */
+        }
+        .message {
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            align-self: flex-end;
+            background-color: #3b82f6;
+            color: white;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .bot-message {
+            align-self: flex-start;
+            background-color: #e5e7eb;
+            color: #374151;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .loading-dots span {
+            animation: bounce 0.6s infinite alternate;
+        }
+        .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body class="p-4 bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="chat-container">
+        <!-- Chat Header -->
+        <header class="bg-blue-600 text-white p-4 text-center rounded-t-xl shadow-md">
+            <h1 class="text-xl font-bold">구글 시트 GPT 챗봇</h1>
+        </header>
+
+        <!-- Chat Messages -->
+        <div id="message-list" class="message-list">
+            <!-- Initial bot message -->
+            <div class="bot-message message shadow-sm">
+                안녕하세요! 무엇을 도와드릴까요?
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="p-4 bg-gray-50 border-t border-gray-200">
+            <form id="chat-form" class="flex gap-2">
+                <input type="text" id="message-input" placeholder="메시지를 입력하세요..."
+                       class="flex-grow p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <button type="submit" id="send-button"
+                        class="bg-blue-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center
+                               hover:bg-blue-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzO4yki8ZD2G40CNAdLGxvFcW9dKkHT4CRhHxsGZxA46JvTw-FM3nr2sJNHi-Ge10oM_g/exec";
+        
+        console.log('Apps Script URL:', SCRIPT_URL);
+
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const messageList = document.getElementById('message-list');
+        const sendButton = document.getElementById('send-button');
+
+        function appendMessage(role, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', role === 'user' ? 'user-message' : 'bot-message', 'shadow-sm');
+            messageDiv.textContent = text;
+            messageList.appendChild(messageDiv);
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userMessage = messageInput.value.trim();
+            if (!userMessage) return;
+
+            appendMessage('user', userMessage);
+            messageInput.value = '';
+            
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.innerHTML = `
+                <div class="flex items-center space-x-1 loading-dots bot-message message shadow-sm">
+                    <span class="bg-gray-400 w-2 h-2 rounded-full"></span>
+                    <span class="bg-gray-400 w-2 h-2 rounded-full"></span>
+                    <span class="bg-gray-400 w-2 h-2 rounded-full"></span>
+                </div>
+            `;
+            messageList.appendChild(loadingIndicator);
+            messageList.scrollTop = messageList.scrollHeight;
+
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: userMessage })
+                });
+
+                const result = await response.json();
+
+                messageList.removeChild(loadingIndicator);
+
+                if (result.error) {
+                    appendMessage('bot', `오류: ${result.error}`);
+                    console.error('Apps Script Error:', result.error);
+                } else {
+                    appendMessage('bot', result.response);
+                }
+
+            } catch (error) {
+                messageList.removeChild(loadingIndicator);
+                appendMessage('bot', `Apps Script 배포 설정(액세스 권한)을 확인해주세요. Failed to fetch 오류가 발생했습니다.`);
+                console.error('Fetch Error:', error);
+            } finally {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        });
+
+        window.addEventListener('load', () => {
+            const chatContainer = document.querySelector('.chat-container');
+            if (chatContainer) {
+                chatContainer.style.height = `calc(100vh - 2rem)`;
+            }
+        });
+    </script>
+</body>
+</html>
